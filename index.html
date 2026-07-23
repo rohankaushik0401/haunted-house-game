@@ -1,0 +1,1042 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>SRK's Haunted House</title>
+<style>
+  :root{
+    --bg1:#0a0812; --bg2:#150f24;
+    --panel:#1a1428; --panel2:#20182f;
+    --accent:#a855f7; --accent-dim:#6b21a8;
+    --danger:#ff4d6d; --success:#3ddc97; --warn:#ffb454;
+    --text:#f1eaff; --muted:#9b8fb8;
+    --border:#332452;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; min-height:100vh; padding:24px;
+    background:
+      radial-gradient(circle at 20% 10%, #241a3a 0%, transparent 45%),
+      radial-gradient(circle at 85% 80%, #2a1338 0%, transparent 40%),
+      linear-gradient(180deg,var(--bg1),var(--bg2));
+    color:var(--text); font-family:'Segoe UI',Tahoma,sans-serif;
+    display:flex; flex-direction:column; align-items:center;
+  }
+  header{ text-align:center; margin-bottom:16px; }
+  h1{
+    margin:0; font-size:30px; letter-spacing:2px;
+    background:linear-gradient(90deg,#c084fc,#f472b6);
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+    text-shadow:0 0 30px rgba(168,85,247,.35);
+  }
+  .subtitle{ color:var(--muted); font-size:13px; margin-top:4px; letter-spacing:.5px; }
+
+  #muteBtn{
+    position:fixed; top:20px; right:20px; z-index:5;
+    background:#2a2044; color:#f1eaff; border:1px solid #332452;
+    border-radius:8px; padding:8px 12px; cursor:pointer; font-size:14px;
+  }
+  #muteBtn:hover{ background:var(--accent); }
+
+  #layout{ display:flex; gap:18px; align-items:flex-start; }
+
+  #gameCol{ display:flex; flex-direction:column; gap:10px; }
+  #canvasWrap{
+    position:relative; border-radius:16px; overflow:hidden;
+    box-shadow:0 0 0 1px var(--border), 0 30px 60px -20px rgba(0,0,0,.8), 0 0 40px -10px rgba(168,85,247,.3);
+    perspective:900px;
+  }
+  #mapCanvas{ display:block; background:#100b1c; outline:none; transform:rotateX(2deg); }
+  #vignette{ position:absolute; inset:0; pointer-events:none;
+    background: radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,.6) 100%); }
+  #interactHint{
+    position:absolute; left:12px; bottom:12px; background:rgba(15,10,25,.75);
+    border:1px solid var(--border); border-radius:8px; padding:6px 10px; font-size:12px; color:var(--muted);
+    backdrop-filter:blur(4px);
+  }
+  kbd{ background:#2c2145; border:1px solid #4a3970; border-radius:4px; padding:1px 6px; font-size:11px; color:#e9d5ff; }
+
+  #roomBadge{
+    display:inline-flex; align-items:center; gap:8px; align-self:flex-start;
+    background:var(--panel); border:1px solid var(--border); border-radius:10px;
+    padding:8px 14px; font-size:13px; color:var(--muted);
+  }
+  #roomBadge b{ color:var(--text); }
+  #roomBadge.safe{ border-color:var(--success); box-shadow:0 0 12px rgba(61,220,151,.3); }
+
+  #sidebar{ width:300px; display:flex; flex-direction:column; gap:14px; }
+  .box{
+    background:linear-gradient(180deg,var(--panel),var(--panel2));
+    border:1px solid var(--border); border-radius:14px; padding:14px 16px;
+    box-shadow:0 10px 25px -15px rgba(0,0,0,.6);
+  }
+  .box h3{ margin:0 0 10px 0; font-size:12px; letter-spacing:1.5px; text-transform:uppercase; color:var(--muted); }
+
+  #lifeRow{ display:flex; align-items:center; gap:10px; margin-bottom:4px; }
+  #lifeRow .icon{ font-size:20px; filter:drop-shadow(0 0 6px rgba(255,77,109,.6)); }
+  #lifeNum{ font-weight:700; font-size:18px; }
+  #lifebar{ height:14px; border-radius:8px; background:#2a2038; overflow:hidden; border:1px solid var(--border); margin-top:6px; }
+  #lifefill{ height:100%; background:linear-gradient(90deg,#ff4d6d,#ffb454); width:100%; transition:width .4s ease; box-shadow:0 0 12px rgba(255,77,109,.5) inset; }
+
+  #pocketGrid{ display:flex; gap:8px; }
+  .slot{
+    width:52px; height:52px; border-radius:10px; background:#241a38; border:1px dashed var(--border);
+    display:flex; align-items:center; justify-content:center; font-size:24px; position:relative;
+  }
+  .slot.filled{ border-style:solid; border-color:var(--accent); box-shadow:0 0 12px rgba(168,85,247,.4); }
+  .slot .label{ position:absolute; bottom:-16px; font-size:9px; color:var(--muted); white-space:nowrap; left:50%; transform:translateX(-50%); }
+
+  #cluesList{ font-size:12.5px; color:var(--muted); line-height:1.7; max-height:90px; overflow-y:auto; }
+  #cluesList .clue{ color:var(--text); }
+
+  #log{
+    height:190px; overflow-y:auto; font-size:12.5px; color:#cbb9e8; line-height:1.6;
+    scrollbar-width:thin; scrollbar-color:var(--accent-dim) transparent;
+  }
+  #log div{ padding:3px 0; border-bottom:1px solid rgba(255,255,255,.04); }
+  #log div:last-child{ color:#fff; }
+
+  /* Modal */
+  #overlay{
+    position:fixed; inset:0; background:rgba(5,3,10,.8); backdrop-filter:blur(3px);
+    display:none; align-items:center; justify-content:center; z-index:10;
+  }
+  #modal{
+    background:linear-gradient(180deg,#1e1730,#150f22);
+    border:1px solid var(--accent-dim); border-radius:16px; padding:26px;
+    width:420px; max-width:90vw; text-align:center;
+    box-shadow:0 0 60px -10px rgba(168,85,247,.4);
+  }
+  #modal h2{ margin:0 0 10px 0; font-size:19px; color:#f472b6; }
+  #modal p{ color:var(--muted); font-size:14px; line-height:1.5; }
+  #modalBtns{ display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin-top:16px; }
+  .mbtn{
+    background:#2a2044; color:var(--text); border:1px solid var(--border); border-radius:8px;
+    padding:10px 16px; cursor:pointer; font-size:13.5px; transition:.15s;
+  }
+  .mbtn:hover{ background:var(--accent); border-color:var(--accent); transform:translateY(-1px); }
+
+  /* Keypad */
+  #keypadDisplay{
+    display:flex; justify-content:center; gap:10px; margin:14px 0;
+  }
+  .digitBox{
+    width:42px; height:52px; border-radius:8px; background:#100b1c; border:2px solid var(--accent-dim);
+    display:flex; align-items:center; justify-content:center; font-size:24px; font-weight:700; color:#fff;
+  }
+  .digitBox.filled{ border-color:var(--accent); box-shadow:0 0 10px rgba(168,85,247,.5); }
+  #keypadGrid{
+    display:grid; grid-template-columns:repeat(3,60px); gap:8px; justify-content:center; margin:0 auto;
+  }
+  .kbtn{
+    background:#241a38; color:#fff; border:1px solid var(--border); border-radius:10px;
+    height:48px; font-size:18px; cursor:pointer; transition:.12s;
+  }
+  .kbtn:hover{ background:var(--accent); transform:translateY(-1px); }
+  .kbtn.wide{ grid-column:span 1; font-size:13px; }
+  #keypadHint{ font-size:11px; color:var(--muted); margin-top:10px; }
+
+  #flash{ position:fixed; inset:0; background:#ff0033; opacity:0; pointer-events:none; transition:opacity .15s; z-index:6; }
+
+  #endscreen{
+    position:fixed; inset:0; display:none; align-items:center; justify-content:center;
+    flex-direction:column; background:rgba(5,3,10,.92); z-index:20; text-align:center; overflow:hidden;
+  }
+  #endscreen h1{ font-size:44px; margin-bottom:6px; -webkit-text-fill-color:initial; background:none; }
+  #endscreen p{ color:var(--muted); margin-bottom:18px; }
+  #endscreen button{
+    background:var(--accent); color:#fff; border:none; border-radius:10px; padding:12px 22px;
+    font-size:14px; cursor:pointer; box-shadow:0 8px 20px -8px rgba(168,85,247,.7);
+  }
+  .confetti{ position:absolute; top:-10px; width:8px; height:8px; opacity:.9; animation:fall linear forwards; }
+  @keyframes fall{ to{ transform:translateY(110vh) rotate(360deg); opacity:0; } }
+  .shake{ animation:shake .3s; }
+  @keyframes shake{ 0%,100%{transform:translate(0,0) rotateX(2deg);} 25%{transform:translate(-6px,0) rotateX(2deg);} 75%{transform:translate(6px,0) rotateX(2deg);} }
+</style>
+</head>
+<body>
+
+<button id="muteBtn">🔊 Sound On</button>
+
+<header>
+  <h1>SRK'S HAUNTED HOUSE</h1>
+  <div class="subtitle">Find the pin • Grab the right key • Reach the car alive</div>
+</header>
+
+<div id="layout">
+  <div id="gameCol">
+    <div id="roomBadge">📍 Location: <b id="roomName">Hallway</b></div>
+    <div id="canvasWrap">
+      <canvas id="mapCanvas" width="680" height="440" tabindex="0"></canvas>
+      <div id="vignette"></div>
+      <div id="interactHint"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> move &nbsp; <kbd>E</kbd> interact</div>
+    </div>
+  </div>
+
+  <div id="sidebar">
+    <div class="box">
+      <h3>Vitals</h3>
+      <div id="lifeRow"><span class="icon">❤️</span><span id="lifeNum">100</span><span style="color:var(--muted);font-size:12px">/ 100</span></div>
+      <div id="lifebar"><div id="lifefill"></div></div>
+    </div>
+
+    <div class="box">
+      <h3>Pocket</h3>
+      <div id="pocketGrid">
+        <div class="slot" id="slot0"></div>
+        <div class="slot" id="slot1"></div>
+      </div>
+    </div>
+
+    <div class="box">
+      <h3>Clues Found</h3>
+      <div id="cluesList"><span style="color:var(--muted)">No clues discovered yet…</span></div>
+    </div>
+
+    <div class="box">
+      <h3>Event Log</h3>
+      <div id="log"></div>
+    </div>
+  </div>
+</div>
+
+<div id="flash"></div>
+<div id="overlay"><div id="modal"></div></div>
+<div id="endscreen"><h1 id="endTitle"></h1><p id="endMsg"></p><button onclick="location.reload()">Play Again</button></div>
+
+<script>
+// ================= STATE =================
+function rnd(a,b){ return Math.floor(Math.random()*(b-a+1))+a; }
+
+const state = {
+  life: rnd(90,110),
+  pin1: rnd(0,9),
+  pin2: 2,
+  pin3: rnd(0,9),
+  carkey: rnd(1,2),
+  pocket: [],
+  drawer: ["pistol"],
+  cupboard: ["bigKey"],
+  computertable: ["Smallkey"],
+  fridge: ["waterbottle"],
+  gasTriggered: false,
+  sinkTriggered: false,
+  pinSolved: false,
+  clues: []
+};
+
+const ICONS = { pistol:'🔫', bigKey:'🗝️', Smallkey:'🔑', waterbottle:'💧' };
+
+// ================= SOUND ENGINE =================
+const SFX = (() => {
+  let ctxA = null, muted = false, ambient = null;
+  function ac(){ if(!ctxA) ctxA = new (window.AudioContext||window.webkitAudioContext)(); return ctxA; }
+
+  function tone(freq, dur, type='sine', vol=0.2, delay=0, glideTo=null){
+    if(muted) return;
+    const a = ac();
+    const osc = a.createOscillator();
+    const gain = a.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, a.currentTime + delay);
+    if(glideTo) osc.frequency.exponentialRampToValueAtTime(glideTo, a.currentTime + delay + dur);
+    gain.gain.setValueAtTime(vol, a.currentTime + delay);
+    gain.gain.exponentialRampToValueAtTime(0.001, a.currentTime + delay + dur);
+    osc.connect(gain).connect(a.destination);
+    osc.start(a.currentTime + delay);
+    osc.stop(a.currentTime + delay + dur);
+  }
+  function noise(dur, vol=0.15, delay=0, filterFreq=800){
+    if(muted) return;
+    const a = ac();
+    const bufferSize = Math.max(1, Math.floor(a.sampleRate * dur));
+    const buffer = a.createBuffer(1, bufferSize, a.sampleRate);
+    const data = buffer.getChannelData(0);
+    for(let i=0;i<bufferSize;i++) data[i] = (Math.random()*2-1) * (1 - i/bufferSize);
+    const src = a.createBufferSource();
+    src.buffer = buffer;
+    const filter = a.createBiquadFilter();
+    filter.type = 'lowpass'; filter.frequency.value = filterFreq;
+    const gain = a.createGain();
+    gain.gain.setValueAtTime(vol, a.currentTime + delay);
+    gain.gain.exponentialRampToValueAtTime(0.001, a.currentTime + delay + dur);
+    src.connect(filter).connect(gain).connect(a.destination);
+    src.start(a.currentTime + delay);
+  }
+
+  return {
+    footstep(){ noise(0.06, 0.05, 0, 300); },
+    hit(){ tone(180,0.25,'sawtooth',0.25,0,60); noise(0.15,0.2,0,400); },
+    heal(){ tone(520,0.12,'sine',0.15,0); tone(780,0.15,'sine',0.15,0.08); },
+    pickup(){ tone(660,0.08,'triangle',0.18,0); tone(880,0.12,'triangle',0.18,0.07); },
+    door(){ noise(0.3,0.12,0,250); },
+    keypress(){ tone(700,0.05,'square',0.1,0); },
+    gunshot(){ noise(0.08,0.3,0,1200); tone(120,0.1,'square',0.15,0); },
+    monsterGrowl(){ tone(90,0.4,'sawtooth',0.2,0,40); tone(70,0.5,'sawtooth',0.15,0.1,30); },
+    bigMonsterGrowl(){ tone(60,0.6,'sawtooth',0.25,0,25); tone(45,0.7,'sawtooth',0.2,0.15,20); },
+    correct(){ [523,659,784,1047].forEach((f,i)=>tone(f,0.18,'triangle',0.18,i*0.09)); },
+    wrong(){ tone(200,0.3,'sawtooth',0.2,0,80); },
+    win(){ [523,659,784,1047,1319].forEach((f,i)=>tone(f,0.25,'triangle',0.2,i*0.13)); },
+    lose(){ [400,300,200,100].forEach((f,i)=>tone(f,0.35,'sawtooth',0.2,i*0.2)); },
+    screech(){ tone(1400,0.15,'sawtooth',0.12,0,900); },
+    toggleMute(){
+      muted = !muted;
+      document.getElementById('muteBtn').textContent = muted ? '🔇 Sound Off' : '🔊 Sound On';
+      if(!muted && !ambient) this.startAmbient();
+      if(muted && ambient){ ambient.stop(); ambient=null; }
+    },
+    startAmbient(){
+      if(muted) return;
+      const a = ac();
+      const osc = a.createOscillator();
+      const gain = a.createGain();
+      osc.type='sine'; osc.frequency.value = 55;
+      gain.gain.value = 0.025;
+      osc.connect(gain).connect(a.destination);
+      osc.start();
+      ambient = osc;
+    }
+  };
+})();
+document.getElementById('muteBtn').addEventListener('click', ()=>SFX.toggleMute());
+let ambientStarted = false;
+document.body.addEventListener('click', ()=>{
+  if(!ambientStarted){ SFX.startAmbient(); ambientStarted = true; }
+}, {once:true});
+
+// ================= LOG / HUD =================
+function log(msg){
+  const l = document.getElementById('log');
+  const d = document.createElement('div');
+  d.textContent = msg;
+  l.appendChild(d);
+  l.scrollTop = l.scrollHeight;
+}
+function addClue(text){
+  state.clues.push(text);
+  const c = document.getElementById('cluesList');
+  c.innerHTML = state.clues.map(x=>`<div class="clue">🔎 ${x}</div>`).join('');
+}
+function updateHUD(){
+  document.getElementById('lifeNum').textContent = Math.max(0,state.life);
+  document.getElementById('lifefill').style.width = Math.max(0,state.life) + "%";
+  for(let i=0;i<2;i++){
+    const slot = document.getElementById('slot'+i);
+    const item = state.pocket[i];
+    if(item){
+      slot.classList.add('filled');
+      slot.innerHTML = `${ICONS[item]||'❔'}<span class="label">${item}</span>`;
+    } else {
+      slot.classList.remove('filled');
+      slot.innerHTML = '';
+    }
+  }
+  if(state.life<=0) gameOver(false);
+}
+
+// ================= MODAL =================
+let modalOpen = false;
+let modalEnterAction = null; // function to call when Enter is pressed while modal open
+
+function showModal(title, html, options, enterAction=null){
+  modalOpen = true;
+  modalEnterAction = enterAction;
+  const overlay = document.getElementById('overlay');
+  const modal = document.getElementById('modal');
+  modal.innerHTML = `<h2>${title}</h2><div>${html}</div><div id="modalBtns"></div>`;
+  const btnWrap = modal.querySelector('#modalBtns');
+  options.forEach(opt=>{
+    const btn = document.createElement('button');
+    btn.className = 'mbtn';
+    btn.textContent = opt.label;
+    btn.onclick = ()=>{ opt.onClick(); closeModal(); };
+    btnWrap.appendChild(btn);
+  });
+  overlay.style.display='flex';
+}
+function closeModal(){
+  document.getElementById('overlay').style.display='none';
+  modalOpen=false; modalEnterAction=null;
+  canvas.focus();
+}
+window.addEventListener('keydown', e=>{
+  if(e.key === 'Enter' && modalOpen && modalEnterAction){
+    modalEnterAction();
+  }
+});
+
+// ================= PARTICLES / FX =================
+let particles = [];
+function spawnParticles(x,y,color,count,opts={}){
+  for(let i=0;i<count;i++){
+    const ang=Math.random()*Math.PI*2;
+    const spd=(opts.speed||2)*Math.random()+0.5;
+    particles.push({
+      x,y, vx:Math.cos(ang)*spd, vy:Math.sin(ang)*spd - (opts.up?1.5:0),
+      life:opts.life||35, maxLife:opts.life||35, color, size:opts.size||3, gravity:opts.gravity??0.05
+    });
+  }
+}
+function updateParticles(){
+  for(let i=particles.length-1;i>=0;i--){
+    const p=particles[i];
+    p.x+=p.vx; p.y+=p.vy; p.vy+=p.gravity; p.life--;
+    if(p.life<=0) particles.splice(i,1);
+  }
+}
+function drawParticles(){
+  particles.forEach(p=>{
+    ctx.globalAlpha=Math.max(0,p.life/p.maxLife);
+    ctx.fillStyle=p.color;
+    ctx.beginPath(); ctx.arc(p.x,p.y,p.size,0,Math.PI*2); ctx.fill();
+  });
+  ctx.globalAlpha=1;
+}
+function flashDamage(){
+  SFX.hit();
+  const f=document.getElementById('flash');
+  f.style.opacity=0.35;
+  setTimeout(()=>f.style.opacity=0,150);
+  spawnParticles(player.x,player.y,'#ff4d6d',14,{speed:3,life:28,size:3});
+  canvas.parentElement.classList.add('shake');
+  setTimeout(()=>canvas.parentElement.classList.remove('shake'),300);
+}
+function spawnConfetti(){
+  const colors=['#ff4d6d','#ffb454','#3ddc97','#60a5fa','#f472b6'];
+  const scr=document.getElementById('endscreen');
+  for(let i=0;i<70;i++){
+    const s=document.createElement('span');
+    s.className='confetti';
+    s.style.left=(Math.random()*100)+'%';
+    s.style.background=colors[Math.floor(Math.random()*colors.length)];
+    s.style.animationDuration=(2+Math.random()*2)+'s';
+    s.style.animationDelay=(Math.random()*0.6)+'s';
+    scr.appendChild(s);
+  }
+}
+
+// ================= FIGHTS =================
+let fightSprite = null;
+
+function monster(afterFn){
+  fightSprite = {icon:'👹'};
+  SFX.monsterGrowl();
+  if(state.pocket.includes("pistol")){
+    const opts = [0,1,2,3].map(n=>({
+      label:String(n),
+      onClick:()=>{
+        SFX.gunshot();
+        const attack = rnd(0,3);
+        if(n===attack){
+          log("Success! The monster is wounded — no life lost.");
+          SFX.heal();
+          spawnParticles(player.x,player.y-10,'#3ddc97',10,{life:28,speed:2});
+        } else {
+          const dmg = rnd(5,20);
+          state.life = Math.max(0,state.life-dmg);
+          log(`Shot missed! Monster hits you for ${dmg}. Life: ${state.life}`);
+          flashDamage();
+        }
+        updateHUD(); fightSprite=null;
+        if(afterFn) afterFn();
+      }
+    }));
+    showModal("👹 A monster appears!", "<p>You have a pistol. Guess a number 0-3 to shoot:</p>", opts);
+  } else {
+    const dmg = rnd(20,30);
+    state.life = Math.max(0,state.life-dmg);
+    log(`No weapon! Monster hits you for ${dmg}. Life: ${state.life}`);
+    flashDamage(); updateHUD();
+    setTimeout(()=>{fightSprite=null;},700);
+    if(afterFn) afterFn();
+  }
+}
+
+function bigmonster(afterFn){
+  fightSprite = {icon:'🧟'};
+  SFX.bigMonsterGrowl();
+  if(state.pocket.includes("pistol")){
+    const opts = [0,1,2,3].map(n=>({
+      label:String(n),
+      onClick:()=>{
+        SFX.gunshot();
+        const attack = rnd(0,3);
+        if(n===attack){
+          const dmg = rnd(0,5);
+          state.life = Math.max(0,state.life-dmg);
+          log(`Big monster wounded! Only ${dmg} life lost. Life: ${state.life}`);
+          if(dmg>0) flashDamage(); else { SFX.heal(); spawnParticles(player.x,player.y-10,'#3ddc97',10,{life:28,speed:2}); }
+        } else {
+          const dmg = rnd(15,20);
+          state.life = Math.max(0,state.life-dmg);
+          log(`Shot missed! Big monster hits you for ${dmg}. Life: ${state.life}`);
+          flashDamage();
+        }
+        updateHUD(); fightSprite=null;
+        if(afterFn) afterFn();
+      }
+    }));
+    showModal("🧟 A BIG monster appears!", "<p>Guess a number 0-3 to shoot:</p>", opts);
+  } else {
+    const dmg = rnd(30,40);
+    state.life = Math.max(0,state.life-dmg);
+    log(`No weapon! Big monster hits you for ${dmg}. Life: ${state.life}`);
+    flashDamage(); updateHUD();
+    setTimeout(()=>{fightSprite=null;},700);
+    if(afterFn) afterFn();
+  }
+}
+
+// ================= EQUIP =================
+function tryEquip(containerName){
+  const container = state[containerName];
+  if(!container.length){ log("Nothing here to equip."); return; }
+  const item = container[0];
+  if(state.pocket.length < 2){
+    showModal("You found something", `<p>There is a <b>${item}</b>. Equip it?</p>`, [
+      {label:"Equip", onClick:()=>{
+        container.shift(); state.pocket.push(item);
+        log(`Equipped ${item}.`);
+        SFX.pickup();
+        updateHUD();
+      }},
+      {label:"Leave it", onClick:()=>log("You left it behind.")}
+    ]);
+  } else {
+    showModal("Pocket full", `<p>There is a <b>${item}</b>, but your pocket is full. Replace an item?</p>`,
+      state.pocket.map((p,i)=>({
+        label:`Replace ${p}`,
+        onClick:()=>{
+          container.shift();
+          const old = state.pocket.splice(i,1)[0];
+          state.pocket.push(item);
+          container.push(old);
+          log(`Swapped ${old} for ${item}.`);
+          SFX.pickup();
+          updateHUD();
+        }
+      })).concat([{label:"Never mind", onClick:()=>log("You left it behind.")}])
+    );
+  }
+}
+
+// ================= ROOM/FURNITURE ACTIONS =================
+function bedBed(){
+  showModal("✉️ A letter", "<p>There's a letter on the bed. Read it?</p>", [
+    {label:"Yes", onClick:()=>{
+      log("The letter is cursed!");
+      monster(()=>{
+        log("The curse fades. There's useful equipment hidden in this bedroom.");
+        addClue("The pin is hidden across all rooms of the house.");
+      });
+    }},
+    {label:"No", onClick:()=>log("You leave the letter alone.")}
+  ]);
+}
+function lrSofa(){
+  showModal("📰 Newspaper", "<p>There's a newspaper on the sofa. Read it?</p>", [
+    {label:"Read", onClick:()=>{
+      log("Article 1: The monster cannot be killed.");
+      log(`Article 2: One digit of the pin is ${state.pin3}.`);
+      log("Article 3: The monster cannot attack in the living room.");
+      addClue(`A pin digit is ${state.pin3} (from the newspaper).`);
+    }},
+    {label:"Skip", onClick:()=>log("You leave the newspaper.")}
+  ]);
+}
+function drTable(){
+  showModal("🍽️ Dining Table", "<p>Do you want a pin digit directly? Beware of consequences.</p>", [
+    {label:"Yes, risk it", onClick:()=>monster(()=>{
+      log(`${state.pin2} is a digit of the pin.`);
+      addClue(`A pin digit is ${state.pin2} (risked it).`);
+    })},
+    {label:"No, be wise", onClick:()=>log("Wise choice. Hint: the digit equals the number of monster types in this game.")}
+  ]);
+}
+function kitGas(){
+  if(!state.gasTriggered && !state.pocket.includes("waterbottle")){
+    log("The gas catches fire — this summons the BIG monster!");
+    log("Mistake: you should've carried the water bottle near gas.");
+    state.gasTriggered = true;
+    bigmonster();
+  } else {
+    log("There's residue from the earlier fire, but nothing new happens.");
+  }
+}
+function kitSink(){
+  if(!state.sinkTriggered){
+    state.sinkTriggered = true;
+    showModal("🚰 The Sink", "<p>The monster heard you! Shout the name of this house to escape:</p>", [
+      {label:"\"srkshaunted\"", onClick:()=>log("You ESCAPE! Correct name.")},
+      {label:"\"the old manor\"", onClick:()=>{ log("Wrong! The monster attacks."); monster(); }},
+      {label:"\"boo house\"", onClick:()=>{ log("Wrong! The monster attacks."); monster(); }}
+    ]);
+  } else {
+    log("Hint reminder — Pin order: Kitchen = 1st digit, Dining room = 2nd digit, Living room = 3rd digit.");
+  }
+}
+function kitShelves(){
+  showModal("🎲 A die", "<p>Roll the die to reveal a pin digit?</p>", [
+    {label:"Roll it", onClick:()=>{
+      log(`The die rolls... ${state.pin1}!`);
+      addClue(`A pin digit is ${state.pin1} (from the die).`);
+    }},
+    {label:"Not now", onClick:()=>{}}
+  ]);
+}
+
+// ---------- KEYPAD PIN ENTRY ----------
+let pinInput = [];
+function renderKeypadDisplay(){
+  return `<div id="keypadDisplay">
+    ${[0,1,2].map(i=>`<div class="digitBox ${pinInput[i]!==undefined?'filled':''}">${pinInput[i]!==undefined?pinInput[i]:''}</div>`).join('')}
+  </div>`;
+}
+function renderKeypad(){
+  const keys = ['1','2','3','4','5','6','7','8','9','⌫','0','↵'];
+  return `<div id="keypadGrid">
+    ${keys.map(k=>`<button class="kbtn" onclick="keypadPress('${k}')">${k}</button>`).join('')}
+  </div>
+  <div id="keypadHint">Type digits, or press <b>Enter</b> to submit</div>`;
+}
+function keypadPress(k){
+  SFX.keypress();
+  if(k==='⌫'){ pinInput.pop(); }
+  else if(k==='↵'){ trySubmitKeypad(); return; }
+  else if(pinInput.length<3){ pinInput.push(k); }
+  refreshKeypadModal();
+}
+function refreshKeypadModal(){
+  document.querySelector('#modal > div').innerHTML = renderKeypadDisplay() + renderKeypad();
+}
+function trySubmitKeypad(){
+  if(pinInput.length<3){ log("Enter all 3 digits first."); return; }
+  const guess = pinInput.join('');
+  const correct = "" + state.pin1 + state.pin2 + state.pin3;
+  closeModal();
+  if(guess === correct){
+    state.pinSolved = true;
+    log("Correct pin! The alarm is disabled. Get to the car — the monster heard you!");
+    SFX.correct();
+    spawnParticles(600,260,'#ffdd55',16,{life:40,speed:2});
+    approachCarPrompt();
+  } else {
+    log("Wrong pin! The monster attacks.");
+    SFX.wrong();
+    monster();
+  }
+  pinInput = [];
+}
+function exitdoor(){
+  SFX.door();
+  pinInput = [];
+  modalOpen = true;
+  modalEnterAction = trySubmitKeypad;
+  const overlay = document.getElementById('overlay');
+  const modal = document.getElementById('modal');
+  modal.innerHTML = `<h2>🚪 Exit Door</h2><div><p>Enter the 3-digit pin:</p>${renderKeypadDisplay()}${renderKeypad()}</div>
+    <div id="modalBtns"><button class="mbtn" onclick="closeModal()">Cancel</button></div>`;
+  overlay.style.display='flex';
+}
+// numeric key support while keypad modal open
+window.addEventListener('keydown', e=>{
+  if(modalOpen && modalEnterAction===trySubmitKeypad){
+    if(/^[0-9]$/.test(e.key)) keypadPress(e.key);
+    if(e.key==='Backspace') keypadPress('⌫');
+  }
+});
+
+function approachCarPrompt(){
+  SFX.door();
+  showModal("🏃 Escape!", "<p>There's a car outside. What do you do?</p>", [
+    {label:"Re-enter the house (risky)", onClick:()=>monster()},
+    {label:"Approach the car", onClick:approachCar}
+  ]);
+}
+function approachCar(){
+  if(!state.pinSolved){
+    log("The car is locked and the alarm's still armed — solve the pin at the exit door first.");
+    return;
+  }
+  const neededKey = state.carkey === 1 ? "Smallkey" : "bigKey";
+  if(state.pocket.includes(neededKey)){
+    showModal("🚗 The Car", "<p>You reach the car. Open the door?</p>", [
+      {label:"Open it!", onClick:()=>gameOver(true)},
+      {label:"Hesitate", onClick:()=>monster()}
+    ]);
+  } else {
+    log(`You don't have the ${neededKey}! The monster catches you.`);
+    monster();
+  }
+}
+
+// ================= GAME OVER =================
+function gameOver(won){
+  if(won) SFX.win(); else SFX.lose();
+  const scr = document.getElementById('endscreen');
+  document.getElementById('endTitle').textContent = won ? "🎉 YOU WON! 🎉" : "💀 GAME OVER 💀";
+  document.getElementById('endTitle').style.color = won ? "#3ddc97" : "#ff4d6d";
+  document.getElementById('endMsg').textContent = won
+    ? "You escaped SRK's Haunted House alive!"
+    : "The monsters got you. Better luck next time.";
+  scr.style.display = "flex";
+  if(won) spawnConfetti();
+}
+
+// ================= MAP DATA =================
+const ROOMS = [
+  {name:'Bedroom',     x:20,  y:20,  w:260, h:180},
+  {name:'Living Room', x:300, y:20,  w:340, h:180, safe:true},
+  {name:'Dining Room', x:20,  y:220, w:260, h:180},
+  {name:'Kitchen',     x:300, y:220, w:190, h:180},
+  {name:'Garage',      x:510, y:220, w:150, h:180}
+];
+const LIVING_ROOM = ROOMS.find(r=>r.safe);
+// slightly padded box monsters should avoid entering at all
+const LIVING_ROOM_BUFFER = {
+  x:LIVING_ROOM.x-10, y:LIVING_ROOM.y-10, w:LIVING_ROOM.w+20, h:LIVING_ROOM.h+20
+};
+function inLivingRoom(x,y,pad=0){
+  return x>=LIVING_ROOM.x-pad && x<=LIVING_ROOM.x+LIVING_ROOM.w+pad &&
+         y>=LIVING_ROOM.y-pad && y<=LIVING_ROOM.y+LIVING_ROOM.h+pad;
+}
+
+const WALLS = [
+  {x:20,y:16,w:260,h:8}, {x:16,y:20,w:8,h:180},
+  {x:20,y:196,w:90,h:8}, {x:170,y:196,w:110,h:8},
+  {x:276,y:20,w:8,h:65}, {x:276,y:145,w:8,h:55},
+
+  {x:300,y:16,w:340,h:8}, {x:636,y:20,w:8,h:180},
+  {x:300,y:196,w:90,h:8}, {x:450,y:196,w:190,h:8},
+  {x:296,y:20,w:8,h:65}, {x:296,y:145,w:8,h:55},
+
+  {x:20,y:396,w:260,h:8}, {x:16,y:220,w:8,h:180},
+  {x:20,y:216,w:90,h:8}, {x:170,y:216,w:110,h:8},
+  {x:276,y:220,w:8,h:60}, {x:276,y:340,w:8,h:60},
+
+  {x:300,y:396,w:190,h:8},
+  {x:300,y:216,w:90,h:8}, {x:450,y:216,w:40,h:8},
+  {x:296,y:220,w:8,h:60}, {x:296,y:340,w:8,h:60},
+  {x:486,y:220,w:8,h:60}, {x:486,y:340,w:8,h:60},
+
+  {x:510,y:216,w:150,h:8}, {x:510,y:396,w:150,h:8}, {x:656,y:220,w:8,h:180},
+  {x:506,y:220,w:8,h:60}, {x:506,y:340,w:8,h:60}
+];
+
+const ITEMS = [
+  {room:'Bedroom', x:70,  y:65,  icon:'🛏️', label:'Bed',            action:bedBed},
+  {room:'Bedroom', x:200, y:55,  icon:'🗃️', label:'Drawer',         action:()=>{log("You open the table drawer..."); tryEquip('drawer');}},
+  {room:'Bedroom', x:200, y:150, icon:'🗄️', label:'Cupboard',       action:()=>{log("You open the cupboard..."); tryEquip('cupboard');}},
+  {room:'Living Room', x:380, y:65,  icon:'🛋️', label:'Sofa',           action:lrSofa},
+  {room:'Living Room', x:570, y:140, icon:'🖥️', label:'Computer Table', action:()=>{log("You search the computer table..."); tryEquip('computertable');}},
+  {room:'Dining Room', x:90,  y:270, icon:'🍽️', label:'Dining Table',   action:drTable},
+  {room:'Dining Room', x:200, y:360, icon:'🧊', label:'Fridge',         action:()=>{log("You search the fridge..."); tryEquip('fridge');}},
+  {room:'Kitchen', x:350, y:270, icon:'🔥', label:'Gas Stove', action:kitGas},
+  {room:'Kitchen', x:440, y:270, icon:'🚰', label:'Sink',      action:kitSink},
+  {room:'Kitchen', x:395, y:360, icon:'📚', label:'Shelves',   action:kitShelves},
+  {room:'Garage', x:570, y:250, icon:'🚪', label:'Exit Door', action:exitdoor},
+  {room:'Garage', x:570, y:360, icon:'🚗', label:'Car',       action:approachCar}
+];
+
+// ================= CANVAS / PLAYER =================
+const canvas = document.getElementById('mapCanvas');
+const ctx = canvas.getContext('2d');
+const player = { x:50, y:180, size:14, speed:2.6 };
+const keys = {};
+let currentRoomName = null;
+let nearestItem = null;
+
+const wanderMonsters = [
+  {x:400,y:290,vx:2.2,vy:1.6,icon:'👻',cooldown:0,chasing:false,chaseTimer:0},
+  {x:150,y:290,vx:-1.8,vy:2.0,icon:'💀',cooldown:0,chasing:false,chaseTimer:0}
+];
+
+window.addEventListener('keydown', e=>{
+  const k = e.key.toLowerCase();
+  if(k==='e'){
+    if(!keys['e']){
+      keys['e']=true;
+      if(!modalOpen && nearestItem) nearestItem.action();
+    }
+  } else {
+    keys[k]=true;
+  }
+});
+window.addEventListener('keyup', e=>{ keys[e.key.toLowerCase()]=false; });
+
+function collidesWalls(px,py){
+  const s = player.size*0.8;
+  const box = {x:px-s,y:py-s,w:s*2,h:s*2};
+  return WALLS.some(w=> box.x<w.x+w.w && box.x+box.w>w.x && box.y<w.y+w.h && box.y+box.h>w.y);
+}
+
+function updateNearest(){
+  let min=1e9, near=null;
+  ITEMS.forEach(it=>{
+    const d=Math.hypot(player.x-it.x, player.y-it.y);
+    if(d<42 && d<min){ min=d; near=it; }
+  });
+  nearestItem = near;
+}
+
+function updatePlayer(){
+  let dx=0, dy=0;
+  if(keys['arrowup']||keys['w']) dy-=1;
+  if(keys['arrowdown']||keys['s']) dy+=1;
+  if(keys['arrowleft']||keys['a']) dx-=1;
+  if(keys['arrowright']||keys['d']) dx+=1;
+  if(dx||dy){
+    const len=Math.hypot(dx,dy); dx=dx/len*player.speed; dy=dy/len*player.speed;
+    if(Math.random()<0.15) SFX.footstep();
+  }
+
+  const nx = player.x+dx, ny = player.y+dy;
+  if(!collidesWalls(nx, player.y)) player.x = Math.max(player.size, Math.min(canvas.width-player.size, nx));
+  if(!collidesWalls(player.x, ny)) player.y = Math.max(player.size, Math.min(canvas.height-player.size, ny));
+  updateNearest();
+}
+
+function updateRoomTracking(){
+  const found = ROOMS.find(r=> player.x>=r.x && player.x<=r.x+r.w && player.y>=r.y && player.y<=r.y+r.h);
+  const newName = found ? found.name : null;
+  if(newName !== currentRoomName){
+    currentRoomName = newName;
+    document.getElementById('roomName').textContent = currentRoomName || 'Hallway';
+    document.getElementById('roomBadge').classList.toggle('safe', found && found.safe);
+    if(newName) log(found.safe ? `Entered ${newName}. You feel safe here.` : `Entered ${newName}.`);
+  }
+}
+
+function updateWander(){
+  wanderMonsters.forEach(m=>{
+    if(m.cooldown>0){ m.cooldown--; return; }
+
+    const distToPlayer = Math.hypot(player.x-m.x, player.y-m.y);
+    const playerSafe = inLivingRoom(player.x, player.y);
+
+    // decide whether to start chasing — much rarer now, and never if player is safe
+    if(!m.chasing && !playerSafe && distToPlayer < 130 && Math.random() < 0.006){
+      m.chasing = true;
+      m.chaseTimer = 45 + rnd(0,45);
+      SFX.screech();
+    }
+
+    if(m.chasing){
+      // abort chase instantly if player reaches the living room
+      if(playerSafe){ m.chasing = false; }
+      else {
+        m.chaseTimer--;
+        const ang = Math.atan2(player.y-m.y, player.x-m.x) + (Math.random()-0.5)*0.6;
+        const chaseSpd = 4.2;
+        m.vx = Math.cos(ang)*chaseSpd;
+        m.vy = Math.sin(ang)*chaseSpd;
+        if(m.chaseTimer<=0 || distToPlayer>240) m.chasing = false;
+      }
+    }
+
+    if(!m.chasing){
+      m.vx += (Math.random()-0.5)*0.6;
+      m.vy += (Math.random()-0.5)*0.6;
+      if(Math.random()<0.08){
+        m.vx = (Math.random()-0.5)*5;
+        m.vy = (Math.random()-0.5)*5;
+      }
+      const spd = Math.hypot(m.vx,m.vy);
+      const maxSpd = 4.0, minSpd = 1.6;
+      if(spd > maxSpd){ m.vx = m.vx/spd*maxSpd; m.vy = m.vy/spd*maxSpd; }
+      else if(spd < minSpd && spd>0){ m.vx = m.vx/spd*minSpd; m.vy = m.vy/spd*minSpd; }
+    }
+
+    // proposed new position
+    let nx = m.x + m.vx, ny = m.y + m.vy;
+
+    // living room is off-limits to monsters entirely — bounce off its border
+    if(inLivingRoom(nx, ny, 6)){
+      m.vx *= -1; m.vy *= -1;
+      nx = m.x + m.vx; ny = m.y + m.vy;
+      m.chasing = false;
+    }
+
+    m.x = nx; m.y = ny;
+
+    if(m.x<20||m.x>canvas.width-20) m.vx*=-1;
+    if(m.y<20||m.y>canvas.height-20) m.vy*=-1;
+    m.x = Math.max(20, Math.min(canvas.width-20, m.x));
+    m.y = Math.max(20, Math.min(canvas.height-20, m.y));
+
+    // no attacks at all if player is in the safe living room
+    if(!playerSafe && distToPlayer<26){
+      const big = Math.random()<0.3;
+      log(big ? "A big shadow lunges at you!" : "A wandering spirit attacks!");
+      if(big) bigmonster(); else monster();
+      m.cooldown=150;
+      m.chasing=false;
+      // respawn away from the living room
+      do{
+        m.x = Math.random()*(canvas.width-100)+50;
+        m.y = Math.random()*(canvas.height-100)+50;
+      } while(inLivingRoom(m.x,m.y,20));
+      m.vx = (Math.random()-0.5)*4;
+      m.vy = (Math.random()-0.5)*4;
+    }
+  });
+}
+
+function updateFireSpawn(){
+  if(state.gasTriggered && Math.random()<0.5){
+    spawnParticles(350,260,'#ff8800',2,{speed:1,up:true,life:35,size:3,gravity:-0.02});
+  }
+}
+
+// ================= DRAW (semi-3D) =================
+function drawFloors(){
+  ROOMS.forEach(r=>{
+    const active = r.name===currentRoomName;
+    const baseColor = r.safe ? (active?'#1c3a2c':'#12261d') : (active ? '#241a3a' : '#160f24');
+    // floor gradient for subtle depth
+    const grad = ctx.createLinearGradient(r.x, r.y, r.x, r.y+r.h);
+    grad.addColorStop(0, baseColor);
+    grad.addColorStop(1, active ? '#0e0a18' : '#0c0814');
+    ctx.fillStyle = grad;
+    ctx.fillRect(r.x,r.y,r.w,r.h);
+
+    // tile grid lines for pseudo-3D floor texture
+    ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+    ctx.lineWidth = 1;
+    const tile = 20;
+    for(let tx=r.x; tx<r.x+r.w; tx+=tile){
+      ctx.beginPath(); ctx.moveTo(tx,r.y); ctx.lineTo(tx,r.y+r.h); ctx.stroke();
+    }
+    for(let ty=r.y; ty<r.y+r.h; ty+=tile){
+      ctx.beginPath(); ctx.moveTo(r.x,ty); ctx.lineTo(r.x+r.w,ty); ctx.stroke();
+    }
+
+    if(active){
+      ctx.strokeStyle= r.safe ? 'rgba(61,220,151,.5)' : 'rgba(168,85,247,.4)';
+      ctx.lineWidth=2;
+      ctx.strokeRect(r.x+1,r.y+1,r.w-2,r.h-2);
+    }
+    ctx.fillStyle = r.safe ? '#5bd6a0' : '#7c5ba6';
+    ctx.font = '11px Segoe UI';
+    ctx.fillText((r.safe?'🛡 ':'')+r.name.toUpperCase(), r.x+8, r.y+16);
+  });
+}
+function drawWalls(){
+  // beveled 3D-ish walls: darker bottom/right edge, lighter top/left edge
+  WALLS.forEach(w=>{
+    ctx.fillStyle = '#4a3970';
+    ctx.fillRect(w.x,w.y,w.w,w.h);
+    // top highlight
+    ctx.fillStyle = 'rgba(255,255,255,0.08)';
+    ctx.fillRect(w.x,w.y,w.w,Math.min(3,w.h));
+    // bottom/right shadow for depth
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.fillRect(w.x, w.y+w.h-3, w.w, 3);
+    ctx.fillRect(w.x+w.w-3, w.y, 3, w.h);
+  });
+}
+function drawShadow(x,y,size){
+  ctx.save();
+  ctx.beginPath();
+  ctx.ellipse(x, y+size*0.9, size*0.9, size*0.32, 0, 0, Math.PI*2);
+  ctx.fillStyle = 'rgba(0,0,0,0.45)';
+  ctx.fill();
+  ctx.restore();
+}
+function drawItems(){
+  ctx.save();
+  ctx.textAlign='center';
+  ITEMS.forEach(it=>{
+    drawShadow(it.x, it.y-4, 12);
+    if(it.label==='Car' && state.pinSolved){ ctx.shadowColor='#3ddc97'; ctx.shadowBlur=22; }
+    else { ctx.shadowBlur=0; }
+    ctx.font='26px serif';
+    ctx.fillText(it.icon, it.x, it.y);
+    ctx.shadowBlur=0;
+    ctx.font='10px Segoe UI';
+    ctx.fillStyle='#a996c9';
+    ctx.fillText(it.label, it.x, it.y+16);
+  });
+  ctx.restore();
+}
+function drawWanderMonsters(){
+  ctx.save();
+  ctx.textAlign='center';
+  wanderMonsters.forEach((m,i)=>{
+    drawShadow(m.x, m.y-2, 11);
+    const pulse = 1+0.15*Math.sin(Date.now()/150+i);
+    const jx = (Math.random()-0.5)*2;
+    const jy = (Math.random()-0.5)*2;
+    ctx.font = `${Math.round(24*pulse)}px serif`;
+    ctx.shadowColor = m.chasing ? '#ff4d6d' : '#a855f7';
+    ctx.shadowBlur = m.chasing ? 20 : 12;
+    ctx.fillText(m.icon, m.x+jx, m.y+jy);
+  });
+  ctx.restore();
+}
+function drawFightSprite(){
+  if(!fightSprite) return;
+  ctx.save();
+  ctx.textAlign='center';
+  const jitter=(Math.random()-0.5)*4;
+  ctx.font='46px serif';
+  ctx.shadowColor='#ff4d6d'; ctx.shadowBlur=18;
+  ctx.fillText(fightSprite.icon, player.x+jitter, player.y-48+jitter);
+  ctx.restore();
+}
+function drawPlayer(){
+  drawShadow(player.x, player.y-2, 12);
+  ctx.save();
+  ctx.textAlign='center';
+  ctx.shadowColor='#c084fc'; ctx.shadowBlur=8;
+  ctx.font='24px serif';
+  ctx.fillText('🧑', player.x, player.y+8);
+  ctx.restore();
+}
+function drawPrompt(){
+  if(nearestItem && !modalOpen){
+    ctx.save();
+    ctx.textAlign='center';
+    ctx.font='bold 12px Segoe UI';
+    ctx.fillStyle='#ffdd55';
+    ctx.fillText(`[E] ${nearestItem.label}`, nearestItem.x, nearestItem.y-22);
+    ctx.restore();
+  }
+}
+
+function render(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.fillStyle='#100b1c'; ctx.fillRect(0,0,canvas.width,canvas.height);
+  drawFloors();
+  drawWalls();
+  drawItems();
+  drawWanderMonsters();
+  drawFightSprite();
+  drawParticles();
+  drawPlayer();
+  drawPrompt();
+}
+
+function gameLoop(){
+  if(!modalOpen){
+    updatePlayer();
+    updateRoomTracking();
+    updateWander();
+    updateFireSpawn();
+  }
+  updateParticles();
+  render();
+  if(state.life>0) requestAnimationFrame(gameLoop);
+}
+
+// ================= INIT =================
+log("Welcome to SRK's Haunted House.");
+log("Move with WASD/Arrows. Press E near furniture to interact.");
+log("The Living Room (🛡) is a safe zone — monsters cannot enter or attack there.");
+log("Find the 3-digit pin, grab the right key, and reach the car.");
+updateHUD();
+canvas.focus();
+gameLoop();
+</script>
+</body>
+</html>
